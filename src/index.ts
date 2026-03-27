@@ -15,6 +15,7 @@ import { initSocket } from "./lib/socket";
 import { SorobanEventListener } from "./services/sorobanEventListener";
 import { specs } from "./lib/swagger";
 import { multiSigSubmissionService } from "./services/multiSigSubmissionService";
+import { apiKeyMiddleware } from "./middleware/apiKeyMiddleware";
 
 // Load environment variables
 dotenv.config();
@@ -97,6 +98,8 @@ app.get(
     customSiteTitle: "StellarFlow API Documentation",
   }),
 );
+// Apply API Key Middleware to all /api routes
+app.use("/api", apiKeyMiddleware);
 
 // Routes
 app.use("/api/market-rates", marketRatesRouter);
