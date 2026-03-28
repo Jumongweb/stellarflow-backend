@@ -1,8 +1,12 @@
 import prisma from "../lib/prisma";
 
+type FailureRecord = {
+  count: number;
+  errors: unknown[];
+};
+
 export class ErrorTracker {
-  private failureCounters: Map<string, { count: number; errors: unknown[] }> =
-    new Map();
+  private failureCounters = new Map<string, FailureRecord>();
   private readonly threshold = 3;
 
   /**
@@ -12,11 +16,11 @@ export class ErrorTracker {
    */
   trackFailure(serviceKey: string, errorDetails: unknown): boolean {
     const existing = this.failureCounters.get(serviceKey);
+
     if (existing) {
       existing.count += 1;
       existing.errors.push(errorDetails);
       this.failureCounters.set(serviceKey, existing);
-      // attempt non-blocking DB write
       this.logError(serviceKey, errorDetails);
       return existing.count >= this.threshold;
     }
@@ -34,11 +38,18 @@ export class ErrorTracker {
     this.failureCounters.delete(serviceKey);
   }
 
-  // private helper - write an error log to the DB but don't throw on failure
-  private async logError(serviceKey: string, errorDetails: unknown) {
+  // Write an error log without breaking the caller if DB logging fails.
+  private async logError(
+    serviceKey: string,
+    errorDetails: unknown,
+  ): Promise<void> {
     try {
       const clientAny = prisma as any;
-      if (clientAny?.errorLog && typeof clientAny.errorLog.create === "function") {
+
+      if (
+        clientAny?.errorLog &&
+        typeof clientAny.errorLog.create === "function"
+      ) {
         await clientAny.errorLog.create({
           data: {
             providerName: serviceKey,
@@ -51,7 +62,7 @@ export class ErrorTracker {
         });
       }
     } catch {
-      // swallow DB errors to avoid breaking the service
+      // Swallow DB errors to avoid breaking the service.
     }
   }
 }
